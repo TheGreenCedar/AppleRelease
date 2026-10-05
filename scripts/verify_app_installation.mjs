@@ -3,7 +3,7 @@ import { sign } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 
 class VerificationError extends Error {
-  constructor(category) { super(category); this.category = category; }
+  constructor(category, publicDetails) { super(category); this.category = category; this.publicDetails = publicDetails; }
 }
 function require(condition, category) {
   if (!condition) throw new VerificationError(category);
@@ -11,6 +11,25 @@ function require(condition, category) {
 function exactPermissions(permissions) {
   return permissions && Object.keys(permissions).sort().join(',') === 'actions,metadata'
     && permissions.actions === 'read' && permissions.metadata === 'read';
+}
+
+function publicAppConfiguration(app) {
+  // These fields are public GitHub enum names/levels, never headers or credentials.
+  const permissions = {};
+  let malformedNames = 0;
+  const safeName = name => typeof name === 'string' && /^[a-z][a-z0-9_]{0,63}$/.test(name)
+    && !/^gh[opsur]_/.test(name);
+  for (const [name, value] of Object.entries(app.permissions ?? {})) {
+    if (!safeName(name)) { malformedNames++; continue; }
+    permissions[name] = ['read', 'write', 'admin', 'none'].includes(value) ? value : '[unrecognized-level]';
+  }
+  const events = Array.isArray(app.events)
+    ? app.events.map(name => safeName(name) ? name : '[unrecognized-event]') : ['[invalid-event-list]'];
+  return { requested_permissions: permissions, subscribed_events: events,
+    missing_required_permissions: ['actions', 'metadata'].filter(name => !Object.hasOwn(permissions, name)),
+    unexpected_permission_names: Object.keys(permissions).filter(name => !['actions', 'metadata'].includes(name)),
+    incorrect_required_levels: ['actions', 'metadata'].filter(name => Object.hasOwn(permissions, name) && permissions[name] !== 'read'),
+    malformed_permission_names: malformedNames };
 }
 
 export async function verifyInstallation({ appId, privateKey, fetchImpl = fetch }) {
@@ -41,7 +60,8 @@ export async function verifyInstallation({ appId, privateKey, fetchImpl = fetch 
   }
   const app = await request('/app', jwt);
   require(String(app.id) === appId && app.owner?.login === 'TheGreenCedar', 'app-identity-mismatch');
-  require(exactPermissions(app.permissions) && Array.isArray(app.events) && app.events.length === 0, 'app-excess-permissions-or-events');
+  if (!(exactPermissions(app.permissions) && Array.isArray(app.events) && app.events.length === 0))
+    throw new VerificationError('app-excess-permissions-or-events', publicAppConfiguration(app));
   const installations = await request('/app/installations?per_page=100', jwt);
   require(Array.isArray(installations) && installations.length === 1, 'expected-one-installation');
   const installation = installations[0];
@@ -78,6 +98,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   } catch (error) {
     const category = error instanceof VerificationError ? error.category : 'unexpected-error';
     console.error(`GitHub App verification stopped [${category}]. No key, JWT, token, or raw API response was printed.`);
+    if (error instanceof VerificationError && error.publicDetails)
+      console.error(`Public App configuration: ${JSON.stringify(error.publicDetails)}`);
     process.exitCode = 1;
   }
 }

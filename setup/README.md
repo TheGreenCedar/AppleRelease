@@ -32,6 +32,8 @@ This reads metadata only. It requires exact Actions/Metadata read permissions an
 
 An existing OAuth login can receive 403/404 for this metadata even when the App exists. In that case, enter the public numeric App ID from its owner settings as `ARTIFACT_READER_APP_ID`. The central workflow authenticates using the existing App credential inside GitHub's runner and verifies the full installation before any Apple credential is loaded. It requires Actions/Metadata read only, no subscribed events, and Speakerdesk as the sole selected private repository. Its temporary verification token is revoked after the metadata check, including on failure. No private key or token is printed or returned to a local machine.
 
+For configuration diagnosis, dispatch **Verify artifact reader metadata only** on `main`. It has no Apple credential or signing steps. Permission/event mismatches report only validated public permission names, read/write levels, subscribed event names, and missing required permissions; raw API responses and credentials are withheld. This check does not change App permissions or installation access.
+
 ## Enter existing Apple credentials once
 
 Open https://github.com/TheGreenCedar/AppleRelease/settings/secrets/actions and create these **repository Actions secrets** using original secure backups. GitHub cannot recover values previously stored in BatCave.

@@ -77,3 +77,39 @@ test('revokes verification token after repository API failure', async () => {
 test('bad key errors contain no key material', async () => {
   await assert.rejects(verifyInstallation({ appId: '5200652', privateKey: 'PRIVATE_SENTINEL' }), { message: 'app-key-format' });
 });
+
+test('reports exact excess permission and default event without opening installation', async () => {
+  const setup = fixture(s => { s.app.permissions = { ...permissions, contents: 'read' }; s.app.events = ['push']; });
+  await assert.rejects(verifyInstallation(setup.options), error => {
+    assert.equal(error.category, 'app-excess-permissions-or-events');
+    assert.deepEqual(error.publicDetails.unexpected_permission_names, ['contents']);
+    assert.deepEqual(error.publicDetails.requested_permissions, { ...permissions, contents: 'read' });
+    assert.deepEqual(error.publicDetails.subscribed_events, ['push']);
+    assert.deepEqual(error.publicDetails.missing_required_permissions, []);
+    return true;
+  });
+  assert.equal(setup.calls.length, 1);
+});
+test('distinguishes missing automatic metadata from extra access', async () => {
+  const setup = fixture(s => { s.app.permissions = { actions: 'read' }; });
+  await assert.rejects(verifyInstallation(setup.options), error => {
+    assert.deepEqual(error.publicDetails.missing_required_permissions, ['metadata']);
+    assert.deepEqual(error.publicDetails.unexpected_permission_names, []);
+    assert.deepEqual(error.publicDetails.subscribed_events, []);
+    return true;
+  });
+});
+test('diagnostics never print non-enum values or credential-shaped names', async () => {
+  const setup = fixture(s => {
+    s.app.permissions = { actions: 'PRIVATE_VALUE_SENTINEL', metadata: 'read', PRIVATE_KEY_SENTINEL: 'PRIVATE_VALUE_SENTINEL' };
+    s.app.events = ['PRIVATE_KEY_SENTINEL', 'ghs_syntheticprivatetoken'];
+    s.app.private_key = 'PRIVATE_KEY_SENTINEL';
+  });
+  await assert.rejects(verifyInstallation(setup.options), error => {
+    const serialized = JSON.stringify(error.publicDetails);
+    assert.ok(!serialized.includes('PRIVATE_'));
+    assert.ok(!serialized.includes('ghs_syntheticprivatetoken'));
+    assert.deepEqual(error.publicDetails.incorrect_required_levels, ['actions']);
+    return true;
+  });
+});
