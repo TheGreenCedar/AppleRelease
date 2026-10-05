@@ -50,6 +50,8 @@ Open https://github.com/TheGreenCedar/AppleRelease/settings/secrets/actions and 
 
 Use GitHub's private entry fields or the owner-controlled interactive `gh secret set NAME --repo TheGreenCedar/AppleRelease --app actions` prompt. No secret values should enter chat, logs or files in this repository. The assistant can verify names afterward; it does not need their values.
 
+Existing P12 exports with an empty password are supported. The owner helper verifies the container and secret name; the runner's native import must still decrypt and authenticate the supplied P12. All other required credential fields must be nonempty.
+
 ## Verify a candidate
 
 The current allowlist approves only merged-main Speakerdesk source `8201f195c05015ae918ab7151c06c74fa5cf4a59`, successful build run `37363635410`, artifact `11367882866`, archive SHA-256 `91db5bc5a5ac5ad01e29da0f47aae9749499fbc271faa697cfa1f505b083e67e`. The archive and both payload hashes were independently verified without launching the app. Its unsigned artifact expires on 2026-10-12.

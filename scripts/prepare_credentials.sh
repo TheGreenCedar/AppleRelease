@@ -1,8 +1,12 @@
 #!/bin/bash
 set -euo pipefail
-for name in APPLE_API_KEY APPLE_API_ISSUER APPLE_API_KEY_CONTENT APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY; do
+for name in APPLE_API_KEY APPLE_API_ISSUER APPLE_API_KEY_CONTENT APPLE_CERTIFICATE APPLE_SIGNING_IDENTITY; do
   [[ -n "${!name:-}" ]] || { echo "Central credential ${name} is missing; use the secure setup handoff." >&2; exit 1; }
 done
+# An existing PKCS12 export can legitimately use an empty password. GitHub
+# resolves both an empty and absent secret to an empty string; the owner setup
+# verifies the secret name, and security import still authenticates the P12.
+APPLE_CERTIFICATE_PASSWORD="${APPLE_CERTIFICATE_PASSWORD-}"
 umask 077
 key_path="$RUNNER_TEMP/applerelease-notary.p8"
 certificate_path="$RUNNER_TEMP/applerelease-certificate.p12"
