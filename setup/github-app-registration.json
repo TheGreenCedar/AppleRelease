@@ -1,0 +1,16 @@
+{
+  "owner": "TheGreenCedar",
+  "name": "RootandRuntime Artifact Reader",
+  "suggested_slug": "rootandruntime-artifact-reader",
+  "homepage_url": "https://github.com/TheGreenCedar",
+  "installation_visibility": "Only on this account",
+  "webhooks_active": false,
+  "webhook_events": [],
+  "request_user_authorization_during_installation": false,
+  "device_flow": false,
+  "repository_permissions": {"actions": "read", "metadata": "read"},
+  "organization_permissions": {},
+  "account_permissions": {},
+  "repository_selection": "selected",
+  "repositories": ["TheGreenCedar/Speakerdesk"]
+}

@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "owner": "TheGreenCedar",
+  "apps": {
+    "speakerdesk": {
+      "repository": "TheGreenCedar/Speakerdesk",
+      "repository_id": 1406057260,
+      "workflow_id": 375597065,
+      "workflow_path": ".github/workflows/apple-build.yml",
+      "branch": "main",
+      "event": "workflow_dispatch",
+      "product": "Speakerdesk",
+      "bundle_id": "com.speakerdesk.desktop",
+      "team_id": "PKUJNR8D6F",
+      "app_name": "Speakerdesk.app",
+      "pyinstaller_runtime": "Contents/MacOS/speakerdesk-runtime",
+      "capture_helper": "Contents/Resources/speakerdesk-capture",
+      "approved_builds": [
+        {
+          "run_id": 37340319762,
+          "artifact_id": 11357848842,
+          "source_commit": "88b311dea8c1bc606c06ffc05b84fdd5c6ed4fc1",
+          "artifact_name": "Speakerdesk-88b311dea8c1bc606c06ffc05b84fdd5c6ed4fc1-adhoc",
+          "artifact_sha256": "ef377e4e29765106436b398119793f82e342b6ffb371899f2519abc717d5ed9c",
+          "version": "0.2.0",
+          "files": [
+            {
+              "filename": "Speakerdesk_0.2.0_AppleSilicon.dmg",
+              "bytes": 96711641,
+              "sha256": "c51acf64c9ef7297e708d38b2c64f9cc1734d44175d24bba3432e44d05ea1921"
+            },
+            {
+              "filename": "Speakerdesk_0.2.0_AppleSilicon.app.zip",
+              "bytes": 94891154,
+              "sha256": "df268ec83fa62716bb44f8916cc858721efad88b772dbd6cf445bfb32b333c54"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

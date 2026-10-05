@@ -1,0 +1,97 @@
+name: Sign approved Apple candidate
+on:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: Registered application
+        type: choice
+        options: [speakerdesk]
+        default: speakerdesk
+        required: true
+      run_id:
+        description: Exact approved producer run ID
+        required: true
+        default: '37340319762'
+      artifact_id:
+        description: Exact approved unsigned artifact ID
+        required: true
+        default: '11357848842'
+      source_commit:
+        description: Exact approved producer source SHA
+        required: true
+        default: '88b311dea8c1bc606c06ffc05b84fdd5c6ed4fc1'
+      artifact_sha256:
+        description: Exact approved artifact archive digest
+        required: true
+        default: ef377e4e29765106436b398119793f82e342b6ffb371899f2519abc717d5ed9c
+permissions:
+  contents: read
+concurrency:
+  group: applerelease-signing
+  cancel-in-progress: false
+jobs:
+  sign:
+    if: github.repository == 'TheGreenCedar/AppleRelease' && github.ref == 'refs/heads/main' && github.actor == 'TheGreenCedar'
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Require one-time private setup
+        env:
+          APP_ID: ${{ vars.ARTIFACT_READER_APP_ID }}
+          APP_KEY: ${{ secrets.ARTIFACT_READER_PRIVATE_KEY }}
+        run: |
+          [[ "$APP_ID" =~ ^[0-9]+$ && -n "$APP_KEY" ]] || { echo 'Complete the private GitHub App setup in setup/README.md first.' >&2; exit 1; }
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+      - run: python -m pip install -r requirements-tools.txt
+      - run: python -m unittest discover -s tests -v
+      - name: Mint producer artifact read token
+        id: reader
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
+        with:
+          app-id: ${{ vars.ARTIFACT_READER_APP_ID }}
+          private-key: ${{ secrets.ARTIFACT_READER_PRIVATE_KEY }}
+          owner: TheGreenCedar
+          repositories: Speakerdesk
+          permission-actions: read
+      - name: Verify producer and extract approved app
+        env:
+          GH_TOKEN: ${{ steps.reader.outputs.token }}
+          INPUT_APP: ${{ inputs.app }}
+          INPUT_RUN_ID: ${{ inputs.run_id }}
+          INPUT_ARTIFACT_ID: ${{ inputs.artifact_id }}
+          INPUT_SOURCE_COMMIT: ${{ inputs.source_commit }}
+          INPUT_ARTIFACT_SHA256: ${{ inputs.artifact_sha256 }}
+        run: python scripts/fetch_candidate.py "$RUNNER_TEMP/approved-candidate"
+      - name: Load existing central Apple credentials
+        env:
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: bash scripts/prepare_credentials.sh
+      - name: Sign all native code, notarize and staple private candidate
+        env:
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: python scripts/sign_candidate.py "$RUNNER_TEMP/approved-candidate" "$RUNNER_TEMP/signed-candidate"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: Speakerdesk-${{ inputs.source_commit }}-notarized-candidate-${{ github.run_id }}
+          path: ${{ runner.temp }}/signed-candidate/*
+          retention-days: 7
+          if-no-files-found: error
+      - name: Remove ephemeral credentials and artifacts
+        if: always()
+        run: |
+          if [[ -n "${APPLE_KEYCHAIN_PATH:-}" ]]; then security delete-keychain "$APPLE_KEYCHAIN_PATH" >/dev/null 2>&1 || true; fi
+          for name in APPLE_API_KEY_PATH APPLE_CERTIFICATE_PATH; do
+            path="${!name:-}"
+            if [[ -n "$path" && "$path" == "$RUNNER_TEMP/"* ]]; then rm -f -- "$path"; fi
+          done
+          rm -rf -- "$RUNNER_TEMP/approved-candidate" "$RUNNER_TEMP/signed-candidate"

@@ -1,0 +1,15 @@
+.venv*/
+.cache/
+work/
+output/
+__pycache__/
+*.pyc
+.env*
+*.pem
+*.p8
+*.p12
+*.key
+*.keychain*
+*.dmg
+*.zip
+.DS_Store
