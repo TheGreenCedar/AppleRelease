@@ -11,19 +11,19 @@ on:
       run_id:
         description: Exact approved producer run ID
         required: true
-        default: '37340319762'
+        default: '37363635410'
       artifact_id:
         description: Exact approved unsigned artifact ID
         required: true
-        default: '11357848842'
+        default: '11367882866'
       source_commit:
         description: Exact approved producer source SHA
         required: true
-        default: '88b311dea8c1bc606c06ffc05b84fdd5c6ed4fc1'
+        default: '8201f195c05015ae918ab7151c06c74fa5cf4a59'
       artifact_sha256:
         description: Exact approved artifact archive digest
         required: true
-        default: ef377e4e29765106436b398119793f82e342b6ffb371899f2519abc717d5ed9c
+        default: 91db5bc5a5ac5ad01e29da0f47aae9749499fbc271faa697cfa1f505b083e67e
 permissions:
   contents: read
 concurrency:
@@ -47,6 +47,12 @@ jobs:
           python-version: '3.13'
       - run: python -m pip install -r requirements-tools.txt
       - run: python -m unittest discover -s tests -v
+      - run: node --test tests/app-installation.test.mjs
+      - name: Verify complete GitHub App permissions and installation scope
+        env:
+          APP_ID: ${{ vars.ARTIFACT_READER_APP_ID }}
+          APP_KEY: ${{ secrets.ARTIFACT_READER_PRIVATE_KEY }}
+        run: node scripts/verify_app_installation.mjs
       - name: Mint producer artifact read token
         id: reader
         uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2

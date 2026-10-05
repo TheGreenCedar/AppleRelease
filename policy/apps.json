@@ -17,22 +17,22 @@
       "capture_helper": "Contents/Resources/speakerdesk-capture",
       "approved_builds": [
         {
-          "run_id": 37340319762,
-          "artifact_id": 11357848842,
-          "source_commit": "88b311dea8c1bc606c06ffc05b84fdd5c6ed4fc1",
-          "artifact_name": "Speakerdesk-88b311dea8c1bc606c06ffc05b84fdd5c6ed4fc1-adhoc",
-          "artifact_sha256": "ef377e4e29765106436b398119793f82e342b6ffb371899f2519abc717d5ed9c",
+          "run_id": 37363635410,
+          "artifact_id": 11367882866,
+          "source_commit": "8201f195c05015ae918ab7151c06c74fa5cf4a59",
+          "artifact_name": "Speakerdesk-8201f195c05015ae918ab7151c06c74fa5cf4a59-adhoc",
+          "artifact_sha256": "91db5bc5a5ac5ad01e29da0f47aae9749499fbc271faa697cfa1f505b083e67e",
           "version": "0.2.0",
           "files": [
             {
               "filename": "Speakerdesk_0.2.0_AppleSilicon.dmg",
-              "bytes": 96711641,
-              "sha256": "c51acf64c9ef7297e708d38b2c64f9cc1734d44175d24bba3432e44d05ea1921"
+              "bytes": 96724011,
+              "sha256": "5d3d2e8c5ba2ed2b92c75f1dd5724a1f9ba2baf6359d88c5046b6e6194d472e4"
             },
             {
               "filename": "Speakerdesk_0.2.0_AppleSilicon.app.zip",
-              "bytes": 94891154,
-              "sha256": "df268ec83fa62716bb44f8916cc858721efad88b772dbd6cf445bfb32b333c54"
+              "bytes": 94915941,
+              "sha256": "c3b60550ebf82aa38c7ed25d1ba907e10da8a6a18371947ea92c2d45f70be1e9"
             }
           ]
         }

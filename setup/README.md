@@ -30,6 +30,8 @@ python scripts/verify_registration.py ACTUAL_APP_SLUG
 
 This reads metadata only. It requires exact Actions/Metadata read permissions and one selected installation repository, Speakerdesk. GitHub's owner UI must also show private installation availability and inactive webhooks. It does not read the App private key or create credentials. After successful verification, set the non-secret repository variable `ARTIFACT_READER_APP_ID` to the verified numeric App ID.
 
+An existing OAuth login can receive 403/404 for this metadata even when the App exists. In that case, enter the public numeric App ID from its owner settings as `ARTIFACT_READER_APP_ID`. The central workflow authenticates using the existing App credential inside GitHub's runner and verifies the full installation before any Apple credential is loaded. It requires Actions/Metadata read only, no subscribed events, and Speakerdesk as the sole selected private repository. Its temporary verification token is revoked after the metadata check, including on failure. No private key or token is printed or returned to a local machine.
+
 ## Enter existing Apple credentials once
 
 Open https://github.com/TheGreenCedar/AppleRelease/settings/secrets/actions and create these **repository Actions secrets** using original secure backups. GitHub cannot recover values previously stored in BatCave.
@@ -48,9 +50,9 @@ Use GitHub's private entry fields or the owner-controlled interactive `gh secret
 
 ## Verify a candidate
 
-The initial allowlist approves only Speakerdesk source `88b311dea8c1bc606c06ffc05b84fdd5c6ed4fc1`, build run `37340319762`, artifact `11357848842`, archive SHA-256 `ef377e4e29765106436b398119793f82e342b6ffb371899f2519abc717d5ed9c`. Its current unsigned artifact expires on 2026-10-12. No signing job has been run as part of source preparation.
+The current allowlist approves only merged-main Speakerdesk source `8201f195c05015ae918ab7151c06c74fa5cf4a59`, successful build run `37363635410`, artifact `11367882866`, archive SHA-256 `91db5bc5a5ac5ad01e29da0f47aae9749499fbc271faa697cfa1f505b083e67e`. The archive and both payload hashes were independently verified without launching the app. Its unsigned artifact expires on 2026-10-12.
 
-After permission metadata and all central secret names are verified, dispatch **Sign approved Apple candidate** on `main`, using its prefilled exact identifiers. The owner can use the GitHub UI or existing authenticated CLI. The workflow downloads only an approved artifact; it cannot fetch producer source or execute producer scripts or the app.
+After the public App ID and all central secret names are configured, dispatch **Sign approved Apple candidate** on `main`, using its prefilled exact identifiers. The owner can use the GitHub UI or existing authenticated CLI. The workflow downloads only an approved artifact; it cannot fetch producer source or execute producer scripts or the app.
 
 Outputs remain private, notarized **candidates**. Both the ZIP's app and the DMG's app must pass signature/ticket verification. Native first launch and meeting capture QA remain required before the RootandRuntime website publishes the exact approved bytes.
 
