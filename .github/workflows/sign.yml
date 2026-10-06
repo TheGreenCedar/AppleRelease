@@ -85,7 +85,15 @@ jobs:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-        run: python scripts/sign_candidate.py "$RUNNER_TEMP/approved-candidate" "$RUNNER_TEMP/signed-candidate"
+        run: python scripts/sign_candidate.py "$RUNNER_TEMP/approved-candidate" "$RUNNER_TEMP/signed-candidate" "$RUNNER_TEMP/signing-diagnostics/signing-progress.json"
+      - name: Preserve safe signer failure diagnostics (not a candidate)
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: Speakerdesk-signing-diagnostics-NOT-CANDIDATE-${{ github.run_id }}
+          path: ${{ runner.temp }}/signing-diagnostics/signing-progress.json
+          retention-days: 7
+          if-no-files-found: ignore
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: Speakerdesk-${{ inputs.source_commit }}-notarized-candidate-${{ github.run_id }}
@@ -100,4 +108,4 @@ jobs:
             path="${!name:-}"
             if [[ -n "$path" && "$path" == "$RUNNER_TEMP/"* ]]; then rm -f -- "$path"; fi
           done
-          rm -rf -- "$RUNNER_TEMP/approved-candidate" "$RUNNER_TEMP/signed-candidate"
+          rm -rf -- "$RUNNER_TEMP/approved-candidate" "$RUNNER_TEMP/signed-candidate" "$RUNNER_TEMP/signing-diagnostics"
