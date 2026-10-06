@@ -2,7 +2,6 @@
 import json
 import os
 import plistlib
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -11,13 +10,16 @@ from carchive import is_macho,rebuild,unpack_entry
 from PyInstaller.archive.readers import CArchiveReader
 from policy import ReleaseError,digest_file,require
 from safe_zip import extract
+from signing_progress import Progress,native_tool,notarize
 
 ROOT=Path(__file__).resolve().parents[1]
+PROGRESS=None
 
-def tool(*arguments):
-    result=subprocess.run([str(arg) for arg in arguments],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True,timeout=1800)
-    require(result.returncode==0,f'Native tool failed: {Path(str(arguments[0])).name} (exit {result.returncode}).')
-    return result.stdout
+def tool(*arguments,timeout=1800):
+    return native_tool(PROGRESS,*arguments,timeout=timeout)
+
+def phase(name):
+    if PROGRESS:PROGRESS.phase(name)
 
 def sign(path,identity,*,entitlements=None):
     arguments=['/usr/bin/codesign','--force','--options','runtime','--timestamp','--sign',identity]
@@ -47,9 +49,14 @@ def sign_runtime(runtime,identity,directory):
         tool('/usr/bin/codesign','--verify','--strict',path);path.unlink()
     return len(changed)
 
-def run(work,output):
+def run(work,output,progress=None):
+    global PROGRESS
+    PROGRESS=progress
+    phase('validation')
     work=Path(work).resolve();output=Path(output).resolve()
     context=json.loads((work/'approved.json').read_text());app=context['app'];build=context['build']
+    require(PROGRESS is not None,'Persistent signer diagnostics are required.')
+    PROGRESS.bind_input(build)
     bundle=work/'stage'/app['app_name'];require(bundle.is_dir(),'Validated app bundle missing.')
     metadata=plistlib.loads((bundle/'Contents/Info.plist').read_bytes())
     require(metadata.get('CFBundleIdentifier')==app['bundle_id'] and metadata.get('CFBundleShortVersionString')==build['version'],'Bundle identity or version mismatch.')
@@ -58,8 +65,10 @@ def run(work,output):
     for path in [main,runtime,capture]:require(path.is_file() and not path.is_symlink(),'Required native executable missing.')
     identity=os.environ['APPLE_SIGNING_IDENTITY'];require(identity!='-','Developer ID signing is required.')
     entitlements=ROOT/'policy/audio-input.plist'
+    phase('embedded-signing')
     with tempfile.TemporaryDirectory(prefix='speakerdesk-inner-sign-',dir=work) as temp:
         native_count=sign_runtime(runtime,identity,Path(temp))
+    phase('bundle-signing')
     native=[]
     for directory,dirs,files in os.walk(bundle,followlinks=False):
         for name in files:
@@ -78,26 +87,28 @@ def run(work,output):
     output.mkdir(parents=True,exist_ok=False)
     archive=output/f'{app["product"]}_{build["version"]}_AppleSilicon.app.zip'
     tool('/usr/bin/ditto','-c','-k','--noextattr','--norsrc','--keepParent',bundle,archive)
-    notary_key=Path(os.environ['APPLE_API_KEY_PATH'])
-    def notarize(path,label):
-        result=json.loads(tool('/usr/bin/xcrun','notarytool','submit',path,'--key',notary_key,'--key-id',os.environ['APPLE_API_KEY'],'--issuer',os.environ['APPLE_API_ISSUER'],'--wait','--output-format','json'))
-        require(result.get('status')=='Accepted',f'Apple rejected the {label} submission.')
-        return {'id':result['id'],'status':result['status'],'kind':label}
-    receipts=[notarize(archive,'app')]
+    credentials={'key_path':Path(os.environ['APPLE_API_KEY_PATH']),
+                 'key_id':os.environ['APPLE_API_KEY'],'issuer':os.environ['APPLE_API_ISSUER']}
+    receipts=[notarize(archive,'app',credentials,PROGRESS,tool=tool)]
+    phase('app-staple')
     tool('/usr/bin/xcrun','stapler','staple',bundle);tool('/usr/bin/xcrun','stapler','validate',bundle)
     tool('/usr/sbin/spctl','--assess','--type','execute',bundle)
     archive.unlink();tool('/usr/bin/ditto','-c','-k','--noextattr','--norsrc','--keepParent',bundle,archive)
+    phase('dmg-build')
     installer=work/'installer';installer.mkdir();tool('/usr/bin/ditto','--noextattr','--norsrc',bundle,installer/app['app_name'])
     os.symlink('/Applications',installer/'Applications')
     dmg=output/f'{app["product"]}_{build["version"]}_AppleSilicon.dmg'
     tool('/usr/bin/hdiutil','create','-volname',app['product'],'-srcfolder',installer,'-format','UDZO','-fs','HFS+','-ov',dmg)
     tool('/usr/bin/codesign','--force','--timestamp','--sign',identity,dmg)
-    receipts.append(notarize(dmg,'dmg'))
+    receipts.append(notarize(dmg,'dmg',credentials,PROGRESS,tool=tool))
+    phase('dmg-staple')
     tool('/usr/bin/xcrun','stapler','staple',dmg);tool('/usr/bin/xcrun','stapler','validate',dmg)
     tool('/usr/bin/codesign','--verify','--strict',dmg)
+    phase('zip-verification')
     zipped=extract(archive,work/'verify-zip',root_name=app['app_name'])
     tool('/usr/bin/codesign','--verify','--deep','--strict',zipped)
     tool('/usr/bin/xcrun','stapler','validate',zipped)
+    phase('dmg-verification')
     mount=work/'verify-dmg';mount.mkdir()
     tool('/usr/bin/hdiutil','attach',dmg,'-readonly','-nobrowse','-mountpoint',mount)
     try:
@@ -106,6 +117,7 @@ def run(work,output):
         tool('/usr/bin/xcrun','stapler','validate',installed)
         tool('/usr/sbin/spctl','--assess','--type','execute',installed)
     finally:tool('/usr/bin/hdiutil','detach',mount)
+    phase('manifest')
     manifest={'schema_version':1,'product':app['product'],'version':build['version'],'source_repository':app['repository'],
               'source_commit':build['source_commit'],'producer_run_id':build['run_id'],'input_artifact_id':build['artifact_id'],
               'input_artifact_sha256':build['artifact_sha256'],'signer_commit':os.environ['GITHUB_SHA'],'signer_run_id':os.environ['GITHUB_RUN_ID'],
@@ -115,9 +127,16 @@ def run(work,output):
               'files':[{'filename':p.name,'bytes':p.stat().st_size,'sha256':digest_file(p)} for p in [dmg,archive]]}
     (output/'artifact-manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
     (output/'SHA256SUMS').write_text(''.join(f'{item["sha256"]}  {item["filename"]}\n' for item in manifest['files']))
+    phase('complete')
+    PROGRESS.finish('succeeded')
     print(f'Notarized private candidate; verified {native_count} embedded native signatures. Public readiness remains pending.')
 
 if __name__=='__main__':
-    try:run(sys.argv[1],sys.argv[2])
+    progress=None
+    try:
+        require(len(sys.argv)==4,'Expected approved work, candidate output and safe diagnostics path.')
+        progress=Progress(sys.argv[3])
+        run(sys.argv[1],sys.argv[2],progress)
     except Exception as error:
+        if progress:progress.finish('failed')
         print('Signing failed: '+(str(error) if isinstance(error,ReleaseError) else type(error).__name__),file=sys.stderr);sys.exit(1)
