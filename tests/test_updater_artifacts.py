@@ -101,7 +101,7 @@ class UpdaterArtifactTests(unittest.TestCase):
             context.write_text(json.dumps({'app': app, 'build': app['approved_builds'][-1]}))
             result = subprocess.run([sys.executable, str(script), str(root)], env=environment, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0); self.assertEqual(output.read_text(), 'enabled=false\n')
-            context.write_text(json.dumps({'app': app, 'build': {'version': '0.6.2', 'updater': True}}))
+            context.write_text(json.dumps({'app': {**app, 'updater_public_key': ''}, 'build': {'version': '0.6.2', 'updater': True}}))
             output.unlink()
             result = subprocess.run([sys.executable, str(script), str(root)], env=environment, capture_output=True, text=True)
             self.assertNotEqual(result.returncode, 0); self.assertFalse(output.exists())
@@ -118,7 +118,7 @@ class UpdaterArtifactTests(unittest.TestCase):
             build = copy.deepcopy(app['approved_builds'][-1]); build['updater'] = invalid
             with self.subTest(invalid=invalid), self.assertRaises(ReleaseError): configuration(app, build)
         next_build = {'version': '0.6.2', 'updater': True}
-        with self.assertRaisesRegex(ReleaseError, 'public key'): configuration(app, next_build)
+        with self.assertRaisesRegex(ReleaseError, 'public key'): configuration({**app, 'updater_public_key': ''}, next_build)
         self.assertEqual(configuration({**app, 'updater_public_key': PUBLIC}, next_build), PUBLIC)
 
     def test_metadata_is_never_returned_after_failed_cryptographic_verification(self):
