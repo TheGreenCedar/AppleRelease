@@ -1,0 +1,12 @@
+{
+  "name": "applerelease-updater-tools",
+  "private": true,
+  "version": "1.0.0",
+  "dependencies": {
+    "@tauri-apps/cli": "https://registry.npmjs.org/@tauri-apps/cli/-/cli-2.12.1.tgz"
+  },
+  "optionalDependencies": {
+    "@tauri-apps/cli-darwin-arm64": "https://registry.npmjs.org/@tauri-apps/cli-darwin-arm64/-/cli-darwin-arm64-2.12.1.tgz",
+    "@tauri-apps/cli-darwin-x64": "https://registry.npmjs.org/@tauri-apps/cli-darwin-x64/-/cli-darwin-x64-2.12.1.tgz"
+  }
+}
