@@ -98,7 +98,10 @@ class UpdaterArtifactTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp); context = root / 'approved.json'; output = root / 'workflow-output'
             environment = dict(os.environ, GITHUB_OUTPUT=str(output), PYTHONDONTWRITEBYTECODE='1')
-            context.write_text(json.dumps({'app': app, 'build': app['approved_builds'][-1]}))
+            historical = [build for build in app['approved_builds']
+                          if tuple(map(int, build['version'].split('.'))) < (0, 6, 2)]
+            self.assertTrue(historical)
+            context.write_text(json.dumps({'app': app, 'build': historical[-1]}))
             result = subprocess.run([sys.executable, str(script), str(root)], env=environment, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0); self.assertEqual(output.read_text(), 'enabled=false\n')
             context.write_text(json.dumps({'app': {**app, 'updater_public_key': ''}, 'build': {'version': '0.6.2', 'updater': True}}))
@@ -112,10 +115,16 @@ class UpdaterArtifactTests(unittest.TestCase):
 
     def test_historical_builds_stay_disabled_and_opt_in_is_explicit(self):
         app = json.loads((ROOT / 'policy/apps.json').read_text())['apps']['speakerdesk']
+        historical = [build for build in app['approved_builds']
+                      if tuple(map(int, build['version'].split('.'))) < (0, 6, 2)]
+        self.assertTrue(historical)
         for build in app['approved_builds']:
-            self.assertIsNone(configuration(app, build))
+            if build in historical or build.get('updater') is not True:
+                self.assertIsNone(configuration(app, build))
+            else:
+                self.assertEqual(configuration(app, build), app['updater_public_key'])
         for invalid in [True, 'true', {}, 1]:
-            build = copy.deepcopy(app['approved_builds'][-1]); build['updater'] = invalid
+            build = copy.deepcopy(historical[-1]); build['updater'] = invalid
             with self.subTest(invalid=invalid), self.assertRaises(ReleaseError): configuration(app, build)
         next_build = {'version': '0.6.2', 'updater': True}
         with self.assertRaisesRegex(ReleaseError, 'public key'): configuration({**app, 'updater_public_key': ''}, next_build)
