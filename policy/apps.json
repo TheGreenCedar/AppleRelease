@@ -215,6 +215,26 @@
               "sha256": "60694549fa89d8abcf0edd184353731d3598c52b333d2259b55e49e4a7e07452"
             }
           ]
+        },
+        {
+          "run_id": 37667438255,
+          "artifact_id": 11502509180,
+          "source_commit": "30fe9332494103b30cf25a41a6439b526820dff6",
+          "artifact_name": "Speakerdesk-30fe9332494103b30cf25a41a6439b526820dff6-adhoc",
+          "artifact_sha256": "1c001548010a37ecb585e17896fb9acb5cca3374b307e36b68842e1debf10716",
+          "version": "0.6.2",
+          "files": [
+            {
+              "filename": "Speakerdesk_0.6.2_AppleSilicon.dmg",
+              "bytes": 129059186,
+              "sha256": "b779b525e693715e68e76f6487121c8d3d8aa2fb7c2b2779d7076216ce378f4f"
+            },
+            {
+              "filename": "Speakerdesk_0.6.2_AppleSilicon.app.zip",
+              "bytes": 126081628,
+              "sha256": "bee88e64920affba2abdb80700bf50153d0d183e2e1450bc56fd950137c20dca"
+            }
+          ]
         }
       ]
     }
