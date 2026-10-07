@@ -11,6 +11,7 @@ from PyInstaller.archive.readers import CArchiveReader
 from policy import ReleaseError,digest_file,require
 from safe_zip import extract
 from signing_progress import Progress,native_tool,notarize
+from updater_artifacts import configuration as updater_configuration,produce as produce_updater
 
 ROOT=Path(__file__).resolve().parents[1]
 PROGRESS=None
@@ -55,6 +56,8 @@ def run(work,output,progress=None):
     phase('validation')
     work=Path(work).resolve();output=Path(output).resolve()
     context=json.loads((work/'approved.json').read_text());app=context['app'];build=context['build']
+    if updater_configuration(app,build):
+        require(bool(os.environ.get('TAURI_SIGNING_PRIVATE_KEY')),'Configure the app-specific updater signing key first.')
     require(PROGRESS is not None,'Persistent signer diagnostics are required.')
     PROGRESS.bind_input(build)
     bundle=work/'stage'/app['app_name'];require(bundle.is_dir(),'Validated app bundle missing.')
@@ -117,6 +120,7 @@ def run(work,output,progress=None):
         tool('/usr/bin/xcrun','stapler','validate',installed)
         tool('/usr/sbin/spctl','--assess','--type','execute',installed)
     finally:tool('/usr/bin/hdiutil','detach',mount)
+    updater_files,updater_metadata=produce_updater(app,build,bundle,work,output,progress=PROGRESS,native_tool=tool)
     phase('manifest')
     manifest={'schema_version':1,'product':app['product'],'version':build['version'],'source_repository':app['repository'],
               'source_commit':build['source_commit'],'producer_run_id':build['run_id'],'input_artifact_id':build['artifact_id'],
@@ -124,7 +128,8 @@ def run(work,output,progress=None):
               'platform':'macos','architecture':'arm64','minimum_os':context['input_manifest']['minimum_os'],
               'channel':'candidate','public_ready':False,'native_meeting_qa':'pending','signing':'developer-id','notarized':True,
               'embedded_native_signatures_verified':native_count,'notarization':receipts,
-              'files':[{'filename':p.name,'bytes':p.stat().st_size,'sha256':digest_file(p)} for p in [dmg,archive]]}
+              'files':[{'filename':p.name,'bytes':p.stat().st_size,'sha256':digest_file(p)} for p in [dmg,archive,*updater_files]]}
+    if updater_metadata is not None:manifest['updater']=updater_metadata
     (output/'artifact-manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
     (output/'SHA256SUMS').write_text(''.join(f'{item["sha256"]}  {item["filename"]}\n' for item in manifest['files']))
     phase('complete')

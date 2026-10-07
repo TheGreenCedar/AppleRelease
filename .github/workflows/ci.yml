@@ -19,3 +19,5 @@ jobs:
       - run: python -m unittest discover -s tests -v
       - run: node --test tests/app-installation.test.mjs
       - run: bash -n scripts/prepare_credentials.sh
+      - run: cargo test --locked --manifest-path tooling/updater/verifier/Cargo.toml
+      - run: bash -n scripts/setup_updater_key.sh

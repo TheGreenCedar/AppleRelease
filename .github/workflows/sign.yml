@@ -71,6 +71,22 @@ jobs:
           INPUT_SOURCE_COMMIT: ${{ inputs.source_commit }}
           INPUT_ARTIFACT_SHA256: ${{ inputs.artifact_sha256 }}
         run: python scripts/fetch_candidate.py "$RUNNER_TEMP/approved-candidate"
+      - name: Determine trusted registration updater mode
+        id: updater
+        run: python scripts/updater_artifacts.py "$RUNNER_TEMP/approved-candidate"
+      - name: Prepare independently pinned updater signer and verifier before credentials
+        if: steps.updater.outputs.enabled == 'true'
+        run: |
+          npm ci --prefix tooling/updater --ignore-scripts --no-audit --no-fund
+          node tooling/updater/node_modules/@tauri-apps/cli/tauri.js signer sign --help | grep -q -- '--app-version'
+          cargo test --locked --manifest-path tooling/updater/verifier/Cargo.toml
+          cargo build --release --locked --manifest-path tooling/updater/verifier/Cargo.toml
+      - name: Require app-specific updater signing setup for opted-in build
+        if: steps.updater.outputs.enabled == 'true'
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          [[ -n "$TAURI_SIGNING_PRIVATE_KEY" ]] || { echo 'Complete app-specific updater setup in setup/UPDATER.md first.' >&2; exit 1; }
       - name: Load existing central Apple credentials
         env:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
@@ -85,6 +101,8 @@ jobs:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: python scripts/sign_candidate.py "$RUNNER_TEMP/approved-candidate" "$RUNNER_TEMP/signed-candidate" "$RUNNER_TEMP/signing-diagnostics/signing-progress.json"
       - name: Preserve safe signer failure diagnostics (not a candidate)
         if: failure()

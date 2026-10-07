@@ -13,3 +13,7 @@ __pycache__/
 *.dmg
 *.zip
 .DS_Store
+node_modules/
+target/
+*.app.tar.gz
+*.app.tar.gz.sig

@@ -21,3 +21,5 @@ node --test tests/app-installation.test.mjs
 ```
 
 Future apps are individually registered in `policy/apps.json` and the artifact-reader installation; they need no Apple credential copies. Existing keys are reused until renewal/rotation is necessary. The source allowlist is deliberately limited to exact tested Speakerdesk builds recorded in policy. The 0.3.0 record approves main commit `846286eed2f358d3dfc6afced8ecf8b0cef2a96a`, successful producer run `37388324272`, artifact `11379884024` and verified archive/payload hashes; repository, workflow, branch and permission checks remain unchanged.
+
+[Speakerdesk updater setup](setup/UPDATER.md) documents opt-in final-app updater artifacts, independently pinned tools, public-key registration and the unexecuted user-run setup script. Existing approved builds keep their original DMG/ZIP output contract.

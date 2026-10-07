@@ -11,7 +11,7 @@ from policy import ReleaseError, require
 
 PHASES = {'validation', 'embedded-signing', 'bundle-signing', 'app-notary',
           'app-staple', 'dmg-build', 'dmg-notary', 'dmg-staple',
-          'zip-verification', 'dmg-verification', 'manifest', 'complete'}
+          'zip-verification', 'dmg-verification', 'updater-archive', 'updater-signing', 'manifest', 'complete'}
 STATES = {'started', 'succeeded', 'failed', 'timeout', 'pending'}
 STATUSES = {'In Progress', 'Accepted', 'Invalid', 'Rejected'}
 NOTARY_BUDGET = 1800
@@ -88,7 +88,8 @@ class Progress:
         require(state in STATES, 'Unknown diagnostic state.')
         # Labels originate exclusively in this module or the fixed phase setter.
         require(tool in {'phase', 'signer', 'codesign', 'lipo', 'ditto', 'hdiutil', 'spctl',
-                         'notarytool-submit', 'notarytool-info', 'stapler-staple', 'stapler-validate'},
+                         'notarytool-submit', 'notarytool-info', 'stapler-staple', 'stapler-validate',
+                         'updater-sign', 'updater-verify'},
                 'Unknown diagnostic tool.')
         event = {'phase': self.data['phase'], 'tool': tool, 'state': state,
                  'elapsed_seconds': round(time.monotonic() - self.started, 3)}
