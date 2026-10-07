@@ -1,6 +1,6 @@
-# One-time private setup
+# One-time secure setup
 
-Authorized destination: private `TheGreenCedar/AppleRelease`. Speakerdesk remains private. No organization, paid plan, personal access token, additional app repository or source write permission is required.
+Authorized destination: `TheGreenCedar/AppleRelease`. Speakerdesk may be public or private; the artifact reader remains restricted to that exact selected repository. No organization, paid plan, personal access token, additional app repository or source write permission is required.
 
 ## Register and install the artifact reader
 
@@ -30,7 +30,7 @@ python scripts/verify_registration.py ACTUAL_APP_SLUG
 
 This reads metadata only. It requires exact Actions/Metadata read permissions and one selected installation repository, Speakerdesk. GitHub's owner UI must also show private installation availability and inactive webhooks. It does not read the App private key or create credentials. After successful verification, set the non-secret repository variable `ARTIFACT_READER_APP_ID` to the verified numeric App ID.
 
-An existing OAuth login can receive 403/404 for this metadata even when the App exists. In that case, enter the public numeric App ID from its owner settings as `ARTIFACT_READER_APP_ID`. The central workflow authenticates using the existing App credential inside GitHub's runner and verifies the full installation before any Apple credential is loaded. It requires Actions/Metadata read only, no subscribed events, and Speakerdesk as the sole selected private repository. Its temporary verification token is revoked after the metadata check, including on failure. No private key or token is printed or returned to a local machine.
+An existing OAuth login can receive 403/404 for this metadata even when the App exists. In that case, enter the public numeric App ID from its owner settings as `ARTIFACT_READER_APP_ID`. The central workflow authenticates using the existing App credential inside GitHub's runner and verifies the full installation before any Apple credential is loaded. It requires Actions/Metadata read only, no subscribed events, and Speakerdesk as the sole selected repository, whether public or private. Its temporary verification token is revoked after the metadata check, including on failure. No private key or token is printed or returned to a local machine.
 
 For configuration diagnosis, dispatch **Verify artifact reader metadata only** on `main`. It has no Apple credential or signing steps. Permission/event mismatches report only validated public permission names, read/write levels, subscribed event names, and missing required permissions; raw API responses and credentials are withheld. This check does not change App permissions or installation access.
 
@@ -58,12 +58,12 @@ The current allowlist approves only merged-main Speakerdesk source `8201f195c050
 
 After the public App ID and all central secret names are configured, dispatch **Sign approved Apple candidate** on `main`, using its prefilled exact identifiers. The owner can use the GitHub UI or existing authenticated CLI. The workflow downloads only an approved artifact; it cannot fetch producer source or execute producer scripts or the app.
 
-Outputs remain private, notarized **candidates**. Both the ZIP's app and the DMG's app must pass signature/ticket verification. Native first launch and meeting capture QA remain required before the RootandRuntime website publishes the exact approved bytes.
+Outputs remain notarized **candidates**, with `public_ready: false`. Both the ZIP's app and the DMG's app must pass signature/ticket verification. Native first launch and meeting capture QA remain required before the RootandRuntime website publishes the exact approved bytes.
 
 ## Future apps and maintenance
 
 New apps need a trusted producer workflow and a centrally reviewed repository/bundle/build registration. Future repository access must be individually authorized and added to this GitHub App's selected installation list. Their repositories need no Apple secret copies. The initial token minting step is fixed to Speakerdesk; onboarding another app requires a reviewed central change.
 
-Rotate or renew Apple credentials centrally when necessary. GitHub App installation tokens are short-lived and the token action revokes its token after the job. The App private key and Apple credentials stay exclusively in this repository's private secret store. Publication credentials and source-write access are outside this setup.
+Rotate or renew Apple credentials centrally when necessary. GitHub App installation tokens are short-lived and the token action revokes its token after the job. The App private key and Apple credentials stay exclusively in this repository's Actions secret store. Publication credentials and source-write access are outside this setup.
 
 Official references: [App registration](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app), [artifact API permissions](https://docs.github.com/en/rest/actions/artifacts), [GitHub CLI secret entry](https://cli.github.com/manual/gh_secret_set).

@@ -82,10 +82,10 @@ export async function verifyInstallation({ appId, privateKey, fetchImpl = fetch 
     require(repositories.total_count === 1 && repositories.repositories?.length === 1, 'installation-must-cover-speakerdesk-only');
     const repository = repositories.repositories[0];
     require(repository.id === 1406057260 && repository.full_name === 'TheGreenCedar/Speakerdesk'
-      && repository.private === true, 'installation-repository-mismatch');
+      && typeof repository.private === 'boolean', 'installation-repository-mismatch');
     return { app_id: app.id, slug: app.slug, installation_id: installation.id,
       permissions: { actions: 'read', metadata: 'read' }, repository_selection: 'selected',
-      repositories: ['TheGreenCedar/Speakerdesk'], private_repository: true };
+      repositories: ['TheGreenCedar/Speakerdesk'], private_repository: repository.private };
   } finally {
     if (token) await request('/installation/token', token, { method: 'DELETE' });
   }

@@ -45,6 +45,16 @@ test('real synthetic JWT verifies exact full installation and revokes temporary 
   assert.deepEqual(result.repositories, ['TheGreenCedar/Speakerdesk']);
   assert.equal(setup.calls.at(-1).method, 'DELETE');
 });
+for (const visibility of [true, false]) test(`accepts exact ${visibility ? 'private' : 'public'} Speakerdesk without changing App access`, async () => {
+  const setup = fixture(s => { s.repositories.repositories[0].private = visibility; });
+  const result = await verifyInstallation(setup.options);
+  assert.equal(result.private_repository, visibility);
+  assert.deepEqual(result.repositories, ['TheGreenCedar/Speakerdesk']);
+  assert.deepEqual(result.permissions, permissions);
+  assert.equal(result.repository_selection, 'selected');
+  assert.equal(setup.calls.at(-1).path, '/installation/token');
+  assert.equal(setup.calls.at(-1).method, 'DELETE');
+});
 for (const [name, change, category] of [
   ['App write permission', s => s.app.permissions = { ...permissions, contents: 'write' }, 'app-excess-permissions-or-events'],
   ['App event subscription', s => s.app.events = ['push'], 'app-excess-permissions-or-events'],
@@ -56,6 +66,10 @@ for (const [name, change, category] of [
   ['suspended installation', s => s.installations[0].suspended_at = '2026-01-01', 'installation-scope-or-permissions'],
   ['foreign owner', s => s.installations[0].account.login = 'foreign', 'installation-owner-mismatch'],
   ['extra selected repository', s => s.repositories.total_count = 2, 'installation-must-cover-speakerdesk-only'],
+  ['wrong public repository name', s => { s.repositories.repositories[0].private = false; s.repositories.repositories[0].full_name = 'TheGreenCedar/Foreign'; }, 'installation-repository-mismatch'],
+  ['wrong public repository ID', s => { s.repositories.repositories[0].private = false; s.repositories.repositories[0].id = 1; }, 'installation-repository-mismatch'],
+  ['missing visibility', s => { delete s.repositories.repositories[0].private; }, 'installation-repository-mismatch'],
+  ['non-boolean visibility', s => { s.repositories.repositories[0].private = 'false'; }, 'installation-repository-mismatch'],
   ['wrong repository', s => s.repositories.repositories[0].id = 1, 'installation-repository-mismatch'],
 ]) test(`rejects ${name}`, async () => {
   const setup = fixture(change);
