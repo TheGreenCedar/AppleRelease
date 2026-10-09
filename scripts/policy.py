@@ -26,6 +26,13 @@ def approved(app_key, run_id, artifact_id, digest, source_commit):
     require(len(matches)==1,'Build is not approved by the central policy.')
     return app,matches[0]
 
+def archive_limit(build):
+    """A registered build may pin its exact larger archive, never a loose cap."""
+    exact=build.get('archive_bytes')
+    if exact is None:return MAX_ARCHIVE
+    require(type(exact) is int and 0<exact<=MAX_MEMBER,'Invalid exact archive byte pin.')
+    return exact
+
 def validate_metadata(app, build, run, artifact):
     require(run.get('id')==build['run_id'], 'Run identity mismatch.')
     require(run.get('repository',{}).get('id')==app['repository_id'] and run.get('head_repository',{}).get('id')==app['repository_id'], 'Foreign or forked repository.')
@@ -34,7 +41,9 @@ def validate_metadata(app, build, run, artifact):
     require(run.get('head_branch')==app['branch'] and run.get('event')==app['event'], 'Untrusted branch or event.')
     require(run.get('head_sha')==build['source_commit'] and run.get('status')=='completed' and run.get('conclusion')=='success', 'Source or build result mismatch.')
     require(artifact.get('id')==build['artifact_id'] and artifact.get('name')==build['artifact_name'], 'Artifact identity mismatch.')
-    require(artifact.get('expired') is False and 0<artifact.get('size_in_bytes',0)<=MAX_ARCHIVE, 'Artifact is expired or too large.')
+    size=artifact.get('size_in_bytes',0)
+    require(artifact.get('expired') is False and type(size) is int and 0<size<=archive_limit(build), 'Artifact is expired or too large.')
+    if 'archive_bytes' in build:require(size==build['archive_bytes'],'Exact archive byte pin differs.')
     require(artifact.get('digest')=='sha256:'+build['artifact_sha256'], 'Artifact service digest mismatch.')
     origin=artifact.get('workflow_run',{})
     require(origin.get('id')==build['run_id'] and origin.get('repository_id')==app['repository_id']

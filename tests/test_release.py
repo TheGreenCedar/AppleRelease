@@ -37,6 +37,17 @@ class PolicyTests(unittest.TestCase):
         for key,value in [('id',1),('name','foreign'),('expired',True),('digest','sha256:'+'0'*64),('size_in_bytes',10**12),('workflow_run',{})]:
             artifact=copy.deepcopy(self.artifact);artifact[key]=value
             with self.subTest(key=key),self.assertRaises(ReleaseError):validate_metadata(self.app,self.build,self.run,artifact)
+    def test_larger_archive_requires_exact_registered_byte_pin(self):
+        artifact=copy.deepcopy(self.artifact);artifact['size_in_bytes']=329569829
+        with self.assertRaises(ReleaseError):validate_metadata(self.app,self.build,self.run,artifact)
+        build=copy.deepcopy(self.build);build['archive_bytes']=artifact['size_in_bytes']
+        validate_metadata(self.app,build,self.run,artifact)
+        for size in [329569828,329569830]:
+            changed=copy.deepcopy(artifact);changed['size_in_bytes']=size
+            with self.subTest(size=size),self.assertRaises(ReleaseError):validate_metadata(self.app,build,self.run,changed)
+        for pin in [True,329569829.0,0,500*1024**2+1]:
+            changed=copy.deepcopy(build);changed['archive_bytes']=pin
+            with self.subTest(pin=pin),self.assertRaises(ReleaseError):validate_metadata(self.app,changed,self.run,artifact)
     def test_payload_hash_and_public_ready_are_enforced(self):
         with tempfile.TemporaryDirectory() as temp:
             root=Path(temp);data=b'candidate';(root/'file.zip').write_bytes(data)

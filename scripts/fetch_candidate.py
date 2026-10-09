@@ -7,7 +7,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from policy import MAX_ARCHIVE, ReleaseError, approved, digest_file, require, validate_manifest, validate_metadata
+from policy import ReleaseError, approved, digest_file, require, validate_manifest, validate_metadata
 from safe_zip import extract
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -46,7 +46,7 @@ def fetch(app_key,run_id,artifact_id,digest,source_commit,destination,token):
     try:
         with urllib.request.build_opener(NoRedirect).open(urllib.request.Request(location),timeout=60) as response,archive.open('xb') as output:
             while block:=response.read(1024**2):
-                received+=len(block);require(received<=MAX_ARCHIVE,'Artifact download exceeds limit.');output.write(block)
+                received+=len(block);require(received<=artifact['size_in_bytes'],'Artifact download exceeds authenticated byte count.');output.write(block)
     except urllib.error.HTTPError as error:raise ReleaseError(f'Artifact storage request failed (HTTP {error.code}).') from None
     require(received==artifact['size_in_bytes'] and digest_file(archive)==build['artifact_sha256'],'Downloaded artifact integrity check failed.')
     expected=[item['filename'] for item in build['files']]+['artifact-manifest.json','SHA256SUMS']
