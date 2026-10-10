@@ -374,7 +374,7 @@
             }
           ],
           "archive_bytes": 329681145,
-          "updater": false,
+          "updater": true,
           "capture_capability": {
             "capability_version": "apple_input_node_output_route_v1",
             "export_contract": "apple_processed_mono16k_v1"
