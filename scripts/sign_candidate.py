@@ -12,6 +12,7 @@ from policy import ReleaseError,digest_file,require
 from safe_zip import extract
 from signing_progress import Progress,native_tool,notarize
 from updater_artifacts import configuration as updater_configuration,produce as produce_updater
+from capture_capability import admit as admit_capture_capability, refresh as refresh_capture_capability
 
 ROOT=Path(__file__).resolve().parents[1]
 PROGRESS=None
@@ -66,6 +67,7 @@ def run(work,output,progress=None):
     executable=metadata.get('CFBundleExecutable','');require(executable and '/' not in executable and '\\' not in executable,'Invalid main executable.')
     main=bundle/'Contents/MacOS'/executable;runtime=bundle/app['pyinstaller_runtime'];capture=bundle/app['capture_helper']
     for path in [main,runtime,capture]:require(path.is_file() and not path.is_symlink(),'Required native executable missing.')
+    capture_capability=admit_capture_capability(bundle,app,build,capture)
     identity=os.environ['APPLE_SIGNING_IDENTITY'];require(identity!='-','Developer ID signing is required.')
     entitlements=ROOT/'policy/audio-input.plist'
     phase('embedded-signing')
@@ -82,6 +84,7 @@ def run(work,output,progress=None):
     for path in sorted(native,key=lambda p:len(p.parts),reverse=True):
         require(tool('/usr/bin/lipo','-archs',path).strip()=='arm64','Bundle contains a non-arm64 executable.')
         if path!=runtime:sign(path,identity,entitlements=entitlements if path==capture else None)
+    capture_capability_metadata=refresh_capture_capability(capture,capture_capability)
     sign(bundle,identity,entitlements=entitlements)
     tool('/usr/bin/codesign','--verify','--deep','--strict',bundle)
     details=tool('/usr/bin/codesign','--display','--verbose=4',bundle)
@@ -130,6 +133,7 @@ def run(work,output,progress=None):
               'embedded_native_signatures_verified':native_count,'notarization':receipts,
               'files':[{'filename':p.name,'bytes':p.stat().st_size,'sha256':digest_file(p)} for p in [dmg,archive,*updater_files]]}
     if updater_metadata is not None:manifest['updater']=updater_metadata
+    if capture_capability_metadata is not None:manifest['capture_capability']=capture_capability_metadata
     (output/'artifact-manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
     (output/'SHA256SUMS').write_text(''.join(f'{item["sha256"]}  {item["filename"]}\n' for item in manifest['files']))
     phase('complete')
