@@ -5,7 +5,6 @@ import plistlib
 import sys
 import tempfile
 from pathlib import Path
-from PyInstaller.utils.osx import fix_exe_for_code_signing,remove_signature_from_binary
 from carchive import is_macho,rebuild,unpack_entry
 from PyInstaller.archive.readers import CArchiveReader
 from policy import ReleaseError,digest_file,require
@@ -30,6 +29,7 @@ def sign(path,identity,*,entitlements=None):
     tool('/usr/bin/codesign','--verify','--strict',path)
 
 def sign_runtime(runtime,identity,directory):
+    from PyInstaller.utils.osx import fix_exe_for_code_signing,remove_signature_from_binary
     # Remove the old outer signature before changing __LINKEDIT/archive sizes.
     remove_signature_from_binary(str(runtime))
     counter=0
@@ -65,17 +65,38 @@ def run(work,output,progress=None):
     metadata=plistlib.loads((bundle/'Contents/Info.plist').read_bytes())
     require(metadata.get('CFBundleIdentifier')==app['bundle_id'] and metadata.get('CFBundleShortVersionString')==build['version'],'Bundle identity or version mismatch.')
     executable=metadata.get('CFBundleExecutable','');require(executable and '/' not in executable and '\\' not in executable,'Invalid main executable.')
-    main=bundle/'Contents/MacOS'/executable;runtime=bundle/app['pyinstaller_runtime'];capture=bundle/app['capture_helper']
-    for path in [main,runtime,capture]:require(path.is_file() and not path.is_symlink(),'Required native executable missing.')
+    runtime_kind=build.get('runtime_kind','pyinstaller')
+    require(runtime_kind in ('pyinstaller','native'),'Unsupported registered runtime kind.')
+    main=bundle/'Contents/MacOS'/executable;capture=bundle/app['capture_helper']
+    runtime=bundle/app['pyinstaller_runtime'] if runtime_kind=='pyinstaller' else None
+    for path in [main,capture,*([runtime] if runtime is not None else [])]:
+        require(path.is_file() and not path.is_symlink(),'Required native executable missing.')
+    if runtime_kind=='native':
+        require(executable=='speakerdesk','Unexpected native Speakerdesk executable.')
+        native_code=[main,capture,bundle/'Contents/Resources/libspeakerdesk_echo.dylib',bundle/'Contents/Frameworks/libmlx.dylib']
+        for path in [*native_code,bundle/'Contents/Resources/speakerdesk-capture.capability.json',
+                     bundle/'Contents/Resources/mlx/mlx.metallib',bundle/'Contents/Resources/THIRD_PARTY_NOTICES.txt']:
+            require(path.is_file() and not path.is_symlink() and path.stat().st_size>0,'Required native resource missing or unsafe.')
+        for path in native_code:
+            if path in [main,capture]:require(path.stat().st_mode&0o111,'Required native executable is not executable.')
+            with path.open('rb') as stream:require(is_macho(stream.read(4)),'Required native code is not Mach-O.')
     capture_capability=admit_capture_capability(bundle,app,build,capture)
     identity=os.environ['APPLE_SIGNING_IDENTITY'];require(identity!='-','Developer ID signing is required.')
     entitlements=ROOT/'policy/audio-input.plist'
-    phase('embedded-signing')
-    with tempfile.TemporaryDirectory(prefix='speakerdesk-inner-sign-',dir=work) as temp:
-        native_count=sign_runtime(runtime,identity,Path(temp))
+    native_count=0
+    if runtime is not None:
+        phase('embedded-signing')
+        with tempfile.TemporaryDirectory(prefix='speakerdesk-inner-sign-',dir=work) as temp:
+            native_count=sign_runtime(runtime,identity,Path(temp))
     phase('bundle-signing')
     native=[]
     for directory,dirs,files in os.walk(bundle,followlinks=False):
+        if runtime_kind=='native':
+            for name in [*dirs,*files]:
+                name=name.lower()
+                require(not (name.endswith(('.py','.pyc','.pyo')) or name=='__pycache__'
+                             or any(part in name for part in ('libpython','python.framework','speakerdesk-runtime'))),
+                        'Native bundle contains a Python runtime payload.')
         for name in files:
             path=Path(directory)/name
             if path.is_symlink():require(path.resolve().is_relative_to(bundle.resolve()),'External bundle link.');continue
@@ -134,6 +155,7 @@ def run(work,output,progress=None):
               'files':[{'filename':p.name,'bytes':p.stat().st_size,'sha256':digest_file(p)} for p in [dmg,archive,*updater_files]]}
     if updater_metadata is not None:manifest['updater']=updater_metadata
     if capture_capability_metadata is not None:manifest['capture_capability']=capture_capability_metadata
+    if runtime_kind=='native':manifest['runtime_kind']='native'
     (output/'artifact-manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
     (output/'SHA256SUMS').write_text(''.join(f'{item["sha256"]}  {item["filename"]}\n' for item in manifest['files']))
     phase('complete')

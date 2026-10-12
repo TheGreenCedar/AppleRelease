@@ -10,6 +10,8 @@ Before loading Apple credentials, the runner verifies the existing GitHub App's 
 
 Speakerdesk's PyInstaller one-file runtime needs embedded library signatures updated as well as its outer signature. The pinned adapter reads/rebuilds its archive without loading marshaled scripts or PYZ code. It preserves unchanged payload entries, signs embedded arm64 libraries and verifies their signatures after reassembly. Native signing, app/DMG notarization and packaged-ticket checks require the secure setup and a real signing run; CPU policy tests do not claim that validation has happened.
 
+An exact approved build may opt into `runtime_kind: "native"`. This requires Speakerdesk's native executable, capture capability and resources, rejects Python runtime payloads, and signs the existing arm64 Mach-O files without the PyInstaller adapter. Its candidate manifest records `runtime_kind: "native"` and zero embedded archive signatures. Approved builds without this field retain the PyInstaller path.
+
 Outputs are workflow artifacts with source/signer commits, input digest, notarization receipts, SHA-256 checksums and `public_ready: false`. Native meeting QA and public publication are separate readiness steps. No workflow publishes a release, changes repository visibility or uses paid transcription APIs.
 
 Run policy tests without keys or model downloads:
