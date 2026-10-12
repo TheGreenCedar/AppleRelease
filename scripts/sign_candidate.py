@@ -5,7 +5,6 @@ import plistlib
 import sys
 import tempfile
 from pathlib import Path
-from PyInstaller.utils.osx import fix_exe_for_code_signing,remove_signature_from_binary
 from carchive import is_macho,rebuild,unpack_entry
 from PyInstaller.archive.readers import CArchiveReader
 from policy import ReleaseError,digest_file,require
@@ -30,6 +29,7 @@ def sign(path,identity,*,entitlements=None):
     tool('/usr/bin/codesign','--verify','--strict',path)
 
 def sign_runtime(runtime,identity,directory):
+    from PyInstaller.utils.osx import fix_exe_for_code_signing,remove_signature_from_binary
     # Remove the old outer signature before changing __LINKEDIT/archive sizes.
     remove_signature_from_binary(str(runtime))
     counter=0

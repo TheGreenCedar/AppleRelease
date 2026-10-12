@@ -100,7 +100,7 @@ class NativeSigningTests(unittest.TestCase):
             stack.enter_context(patch.dict(os.environ, environment, clear=True))
             stack.enter_context(patch.object(signer, 'tool', side_effect=self.tool))
             runtime = stack.enter_context(patch.object(signer, 'sign_runtime', return_value=legacy_count))
-            for name in ('rebuild', 'CArchiveReader', 'fix_exe_for_code_signing', 'remove_signature_from_binary'):
+            for name in ('rebuild', 'CArchiveReader'):
                 stack.enter_context(patch.object(signer, name, side_effect=AssertionError('PyInstaller adapter invoked')))
             stack.enter_context(patch.object(signer, 'notarize', side_effect=lambda path, kind, *args, **kwargs:
                                            {'kind': kind, 'status': 'Accepted', 'id': 'synthetic'}))
