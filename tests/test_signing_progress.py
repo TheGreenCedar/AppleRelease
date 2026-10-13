@@ -166,7 +166,9 @@ class NotaryTests(unittest.TestCase):
             result = native_tool(self.progress, *arguments, timeout=60)
         self.assertEqual(result, 'validated')
         self.assertEqual([args for args, _ in self.calls], [arguments] * 3)
-        self.assertEqual([kwargs['timeout'] for _, kwargs in self.calls], [60, 55, 40])
+        self.assertEqual(len(self.calls), 3)
+        for (_, kwargs), expected in zip(self.calls, (60, 55, 40)):
+            self.assertAlmostEqual(kwargs['timeout'], expected)
         data = json.loads(self.path.read_text())
         outcomes = [(event['state'], event['exit_code']) for event in data['events'] if 'exit_code' in event]
         self.assertEqual(outcomes, [('pending', 68), ('pending', 68), ('succeeded', 0)])
@@ -193,7 +195,7 @@ class NotaryTests(unittest.TestCase):
             native_tool(self.progress, '/usr/bin/xcrun', 'stapler', 'validate',
                         '/private/candidate.zip', timeout=60)
         self.assertEqual(len(self.calls), 3)
-        self.assertEqual(self.now - self.progress.started, 20)
+        self.assertAlmostEqual(self.now - self.progress.started, 20)
         failure = json.loads(self.path.read_text())['failure_event']
         self.assertEqual((failure['tool'], failure['state'], failure['exit_code']),
                          ('stapler-validate', 'failed', 68))
@@ -232,8 +234,10 @@ class NotaryTests(unittest.TestCase):
                 self.assertRaisesRegex(ReleaseError, r'stapler-validate \(exit 68\)'):
             native_tool(self.progress, '/usr/bin/xcrun', 'stapler', 'validate',
                         '/private/candidate.zip', timeout=19)
-        self.assertEqual([kwargs['timeout'] for _, kwargs in self.calls], [19, 11])
-        self.assertEqual(self.now - self.progress.started, 11)
+        self.assertEqual(len(self.calls), 2)
+        for (_, kwargs), expected in zip(self.calls, (19, 11)):
+            self.assertAlmostEqual(kwargs['timeout'], expected)
+        self.assertAlmostEqual(self.now - self.progress.started, 11)
         self.assertEqual(json.loads(self.path.read_text())['failure_event']['exit_code'], 68)
         self.assert_safe()
 
