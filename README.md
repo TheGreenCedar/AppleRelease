@@ -14,6 +14,8 @@ An exact approved build may opt into `runtime_kind: "native"`. This requires Spe
 
 Outputs are workflow artifacts with source/signer commits, input digest, notarization receipts, SHA-256 checksums and `public_ready: false`. Native meeting QA and public publication are separate readiness steps. No workflow publishes a release, changes repository visibility or uses paid transcription APIs.
 
+Read-only `stapler validate` retries exit 68 at most twice, after 5 and 15 seconds within its original timeout budget; only exit 0 passes the ticket gate. Exit 68 can mean missing notarization or an unexpected ticket-service response. Other exit codes, process timeouts and launch failures are not retried, and raw tool output stays private.
+
 Run policy tests without keys or model downloads:
 
 ```sh

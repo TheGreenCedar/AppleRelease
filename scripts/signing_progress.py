@@ -124,19 +124,31 @@ class Progress:
 
 def native_tool(progress, *arguments, timeout=1800):
     label = tool_label(arguments)
-    if progress: progress.event(label, 'started')
-    try:
-        result = subprocess.run([str(arg) for arg in arguments], stdout=subprocess.PIPE,
-                                stderr=subprocess.STDOUT, text=True, timeout=timeout)
-    except subprocess.TimeoutExpired:
-        if progress: progress.event(label, 'timeout')
-        raise ReleaseError(f'Native tool timed out: {label}.') from None
-    except OSError:
-        if progress: progress.event(label, 'failed')
-        raise ReleaseError(f'Native tool could not start: {label}.') from None
-    if progress: progress.event(label, 'succeeded' if result.returncode == 0 else 'failed', exit_code=result.returncode)
-    require(result.returncode == 0, f'Native tool failed: {label} (exit {result.returncode}).')
-    return result.stdout
+    deadline = time.monotonic() + timeout
+    for attempt in range(3):
+        remaining = timeout if attempt == 0 else deadline - time.monotonic()
+        if progress: progress.event(label, 'started')
+        try:
+            if remaining <= 0:
+                raise subprocess.TimeoutExpired(label, timeout)
+            result = subprocess.run([str(arg) for arg in arguments], stdout=subprocess.PIPE,
+                                    stderr=subprocess.STDOUT, text=True, timeout=remaining)
+        except subprocess.TimeoutExpired:
+            if progress: progress.event(label, 'timeout')
+            raise ReleaseError(f'Native tool timed out: {label}.') from None
+        except OSError:
+            if progress: progress.event(label, 'failed')
+            raise ReleaseError(f'Native tool could not start: {label}.') from None
+        # EX_NOHOST can be an unexpected ticket-service response. Retry only validation.
+        delay = (5, 15)[attempt] if attempt < 2 else None
+        if (label == 'stapler-validate' and result.returncode == 68 and delay is not None
+                and deadline - time.monotonic() > delay):
+            if progress: progress.event(label, 'pending', exit_code=68)
+            time.sleep(delay)
+            continue
+        if progress: progress.event(label, 'succeeded' if result.returncode == 0 else 'failed', exit_code=result.returncode)
+        require(result.returncode == 0, f'Native tool failed: {label} (exit {result.returncode}).')
+        return result.stdout
 
 
 def notarize(path, kind, credentials, progress, *, tool, clock=time.monotonic, sleep=time.sleep):

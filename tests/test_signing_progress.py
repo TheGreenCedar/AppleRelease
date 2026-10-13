@@ -155,6 +155,92 @@ class NotaryTests(unittest.TestCase):
         self.assertEqual(data['events'][-2]['exit_code'], 2)
         self.assert_safe()
 
+    def test_stapler_validate_68_can_recover_only_on_zero_with_same_arguments(self):
+        arguments = ['/usr/bin/xcrun', 'stapler', 'validate', '/private/candidate.zip']
+        self.now = self.progress.started
+        self.progress.phase('dmg-staple')
+        with patch('signing_progress.subprocess.run', self.runner([
+                (68, 'PRIVATE RAW RESPONSE'), (68, 'PRIVATE RAW RESPONSE'), (0, 'validated')])), \
+                patch('signing_progress.time.monotonic', lambda: self.now), \
+                patch('signing_progress.time.sleep', self.sleep):
+            result = native_tool(self.progress, *arguments, timeout=60)
+        self.assertEqual(result, 'validated')
+        self.assertEqual([args for args, _ in self.calls], [arguments] * 3)
+        self.assertEqual(len(self.calls), 3)
+        for (_, kwargs), expected in zip(self.calls, (60, 55, 40)):
+            self.assertAlmostEqual(kwargs['timeout'], expected)
+        data = json.loads(self.path.read_text())
+        outcomes = [(event['state'], event['exit_code']) for event in data['events'] if 'exit_code' in event]
+        self.assertEqual(outcomes, [('pending', 68), ('pending', 68), ('succeeded', 0)])
+        self.assertNotIn('failure_event', data)
+        self.assert_safe()
+
+    def test_stapler_validate_success_needs_no_retry(self):
+        self.now = self.progress.started
+        with patch('signing_progress.subprocess.run', self.runner([(0, 'validated')])), \
+                patch('signing_progress.time.monotonic', lambda: self.now), \
+                patch('signing_progress.time.sleep') as sleep:
+            self.assertEqual(native_tool(self.progress, '/usr/bin/xcrun', 'stapler', 'validate',
+                                         '/private/candidate.zip', timeout=60), 'validated')
+        self.assertEqual(len(self.calls), 1)
+        sleep.assert_not_called()
+        self.assert_safe()
+
+    def test_stapler_validate_68_exhaustion_remains_a_failure(self):
+        self.now = self.progress.started
+        with patch('signing_progress.subprocess.run', self.runner([(68, 'PRIVATE RAW RESPONSE')])), \
+                patch('signing_progress.time.monotonic', lambda: self.now), \
+                patch('signing_progress.time.sleep', self.sleep), \
+                self.assertRaisesRegex(ReleaseError, r'stapler-validate \(exit 68\)'):
+            native_tool(self.progress, '/usr/bin/xcrun', 'stapler', 'validate',
+                        '/private/candidate.zip', timeout=60)
+        self.assertEqual(len(self.calls), 3)
+        self.assertAlmostEqual(self.now - self.progress.started, 20)
+        failure = json.loads(self.path.read_text())['failure_event']
+        self.assertEqual((failure['tool'], failure['state'], failure['exit_code']),
+                         ('stapler-validate', 'failed', 68))
+        self.assert_safe()
+
+    def test_only_validate_exit_68_is_retried_and_process_errors_abort(self):
+        tools = [('/usr/bin/codesign', '--verify'), ('/usr/bin/hdiutil', 'create'),
+                 ('/usr/bin/xcrun', 'stapler', 'staple'),
+                 ('/usr/bin/xcrun', 'notarytool', 'submit'), ('/usr/bin/xcrun', 'notarytool', 'info')]
+        validate = ('/usr/bin/xcrun', 'stapler', 'validate')
+        cases = [(validate, (code, 'PRIVATE RAW RESPONSE')) for code in (65, 66, 77)]
+        cases += [(tool, (68, 'PRIVATE RAW RESPONSE')) for tool in tools]
+        cases += [(validate, error) for error in (
+            subprocess.TimeoutExpired(['SECRET-KEY'], 60), OSError('PRIVATE RAW RESPONSE'))]
+        self.now = self.progress.started
+        for tool, response in cases:
+            with self.subTest(tool=tool, response=type(response).__name__):
+                self.calls = []
+                with patch('signing_progress.subprocess.run', self.runner([response])), \
+                        patch('signing_progress.time.monotonic', lambda: self.now), \
+                        patch('signing_progress.time.sleep') as sleep, self.assertRaises(ReleaseError):
+                    native_tool(self.progress, *tool, '/private/candidate.zip', timeout=60)
+                self.assertEqual(len(self.calls), 1)
+                sleep.assert_not_called()
+                self.assert_safe()
+
+    def test_stapler_validate_retries_share_the_original_timeout_budget(self):
+        self.now = self.progress.started
+        runner = self.runner([(68, 'PRIVATE RAW RESPONSE')])
+        def run(arguments, **kwargs):
+            self.now += 3
+            return runner(arguments, **kwargs)
+        with patch('signing_progress.subprocess.run', run), \
+                patch('signing_progress.time.monotonic', lambda: self.now), \
+                patch('signing_progress.time.sleep', self.sleep), \
+                self.assertRaisesRegex(ReleaseError, r'stapler-validate \(exit 68\)'):
+            native_tool(self.progress, '/usr/bin/xcrun', 'stapler', 'validate',
+                        '/private/candidate.zip', timeout=19)
+        self.assertEqual(len(self.calls), 2)
+        for (_, kwargs), expected in zip(self.calls, (19, 11)):
+            self.assertAlmostEqual(kwargs['timeout'], expected)
+        self.assertAlmostEqual(self.now - self.progress.started, 11)
+        self.assertEqual(json.loads(self.path.read_text())['failure_event']['exit_code'], 68)
+        self.assert_safe()
+
 
 if __name__ == '__main__':
     unittest.main()
