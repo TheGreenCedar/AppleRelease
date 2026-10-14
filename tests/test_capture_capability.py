@@ -44,6 +44,38 @@ class CapabilityTests(unittest.TestCase):
         self.assertEqual(report['manifest_sha256'], digest_file(self.path))
         self.assertEqual(list(self.path.parent.glob('.capture-capability-*')), [])
 
+    def test_opted_in_progress_contract_survives_signing_refresh(self):
+        contract = {**capability.FIXED, 'progress_contract': 'audio_queue_fence_v1'}
+        self.build['capture_capability'] = contract
+        self.write_manifest(progress_contract='audio_queue_fence_v1')
+        admitted = self.admit()
+        original_hash = digest_file(self.capture)
+        self.capture.write_bytes(b'final signed helper with audio queue fence')
+        report = capability.refresh(self.capture, admitted)
+        self.assertEqual(json.loads(self.path.read_text()),
+                         {**contract, 'helper_sha256': digest_file(self.capture)})
+        self.assertEqual(report['progress_contract'], 'audio_queue_fence_v1')
+        self.assertEqual(report['input_helper_sha256'], original_hash)
+        self.assertEqual(report['signed_helper_sha256'], digest_file(self.capture))
+        self.assertIsNotNone(self.admit())
+
+    def test_progress_contract_requires_exact_per_build_opt_in(self):
+        self.write_manifest(progress_contract='audio_queue_fence_v1')
+        with self.assertRaises(ReleaseError):
+            self.admit()
+        self.build['capture_capability'] = {
+            **capability.FIXED, 'progress_contract': 'audio_queue_fence_v1'}
+        for changes in ({}, {'progress_contract': 'future'}, {'progress_contract': False},
+                        {'progress_contract': 'audio_queue_fence_v1', 'extra': True}):
+            self.write_manifest(**changes)
+            with self.subTest(changes=changes), self.assertRaises(ReleaseError):
+                self.admit()
+        self.write_manifest(progress_contract='audio_queue_fence_v1')
+        for progress in ('future', False, None):
+            with self.subTest(progress=progress), self.assertRaises(ReleaseError):
+                self.admit(build={'capture_capability': {
+                    **capability.FIXED, 'progress_contract': progress}})
+
     def test_legacy_untouched(self):
         self.path.unlink()
         self.assertIsNone(self.admit(build={}))
@@ -100,6 +132,17 @@ class CapabilityTests(unittest.TestCase):
         self.path.write_text('{}')
         with self.assertRaises(ReleaseError): capability.refresh(self.capture, admitted)
         self.assertEqual(self.path.read_text(), '{}')
+
+    def test_admitted_progress_contract_cannot_be_downgraded_during_refresh(self):
+        self.build['capture_capability'] = {
+            **capability.FIXED, 'progress_contract': 'audio_queue_fence_v1'}
+        self.write_manifest(progress_contract='audio_queue_fence_v1')
+        admitted = self.admit()
+        admitted['contract'] = dict(capability.FIXED)
+        before = self.path.read_bytes()
+        with self.assertRaises(ReleaseError):
+            capability.refresh(self.capture, admitted)
+        self.assertEqual(self.path.read_bytes(), before)
 
     def test_signer_order_and_no_producer_execution(self):
         source = (Path(__file__).resolve().parents[1] / 'scripts/sign_candidate.py').read_text()
