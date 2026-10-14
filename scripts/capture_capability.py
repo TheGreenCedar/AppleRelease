@@ -9,6 +9,7 @@ from policy import digest_file, require
 
 FIXED = {'capability_version': 'apple_input_node_output_route_v1',
          'export_contract': 'apple_processed_mono16k_v1'}
+PROGRESS = {**FIXED, 'progress_contract': 'audio_queue_fence_v1'}
 CAPTURE_PATH = 'Contents/Resources/speakerdesk-capture'
 
 
@@ -29,7 +30,7 @@ def admit(bundle, app, build, capture):
         require(not path.exists() and not path.is_symlink(),
                 'Capture capability needs explicit registered build opt-in.')
         return None
-    require(type(entry) is dict and entry == FIXED,
+    require(type(entry) is dict and entry in (FIXED, PROGRESS),
             'Unsupported registered capture capability contract.')
     require(app.get('bundle_id') == 'com.speakerdesk.desktop'
             and app.get('capture_helper') == CAPTURE_PATH
@@ -44,12 +45,12 @@ def admit(bundle, app, build, capture):
     except (ValueError, UnicodeError):
         require(False, 'Capture capability manifest is invalid JSON.')
     require(type(value) is dict
-            and set(value) == {'helper_sha256', 'capability_version', 'export_contract'}
-            and {key: value[key] for key in FIXED} == FIXED
+            and set(value) == set(entry) | {'helper_sha256'}
+            and {key: value[key] for key in entry} == entry
             and value['helper_sha256'] == digest_file(capture),
             'Capture capability does not match the approved input helper.')
     return {'path': path, 'input_manifest_sha256': digest_file(path),
-            'input_helper_sha256': value['helper_sha256']}
+            'input_helper_sha256': value['helper_sha256'], 'contract': dict(entry)}
 
 
 def refresh(capture, admitted):
@@ -64,8 +65,17 @@ def refresh(capture, admitted):
             'Capture capability changed during native signing.')
     require(capture.is_file() and not capture.is_symlink(),
             'Signed capture helper is missing or linked.')
+    contract = admitted['contract']
+    require(type(contract) is dict and contract in (FIXED, PROGRESS),
+            'Unsupported admitted capture capability contract.')
+    manifest = json.loads(path.read_bytes(), object_pairs_hook=_pairs)
+    require(type(manifest) is dict
+            and set(manifest) == set(contract) | {'helper_sha256'}
+            and {key: manifest[key] for key in contract} == contract
+            and manifest['helper_sha256'] == admitted['input_helper_sha256'],
+            'Admitted capture capability contract changed during native signing.')
     final_hash = digest_file(capture)
-    value = {**FIXED, 'helper_sha256': final_hash}
+    value = {**contract, 'helper_sha256': final_hash}
     data = (json.dumps(value, sort_keys=True) + '\n').encode()
     temporary = None
     try:
@@ -82,7 +92,7 @@ def refresh(capture, admitted):
             temporary.unlink(missing_ok=True)
     require(digest_file(path) == hashlib.sha256(data).hexdigest(),
             'Final capture capability publication differs.')
-    return {'manifest': CAPTURE_PATH + '.capability.json', **FIXED,
+    return {'manifest': CAPTURE_PATH + '.capability.json', **contract,
             'input_helper_sha256': admitted['input_helper_sha256'],
             'signed_helper_sha256': final_hash,
             'manifest_sha256': digest_file(path)}
