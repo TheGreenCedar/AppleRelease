@@ -542,6 +542,34 @@
             "export_contract": "apple_processed_mono16k_v1",
             "progress_contract": "audio_queue_fence_v1"
           }
+        },
+        {
+          "run_id": 38760891699,
+          "artifact_id": 11986610510,
+          "source_commit": "27cadc6a40a4cd8abab3a6ff2c40eab85a3202a7",
+          "artifact_name": "Speakerdesk-27cadc6a40a4cd8abab3a6ff2c40eab85a3202a7-adhoc",
+          "artifact_sha256": "e6b016fca1516d6b166035441d00d9352e2c6e2ab09235b486265ca10912deeb",
+          "version": "0.7.6",
+          "files": [
+            {
+              "filename": "Speakerdesk_0.7.6_AppleSilicon.dmg",
+              "bytes": 64815918,
+              "sha256": "7960c238373a9affb9805e293b84c790726e0dcf92bcd5e42a6092f5486a2084"
+            },
+            {
+              "filename": "Speakerdesk_0.7.6_AppleSilicon.app.zip",
+              "bytes": 55283602,
+              "sha256": "6eee043b6c5f1b4062af6e84a1d1e2d45d0993a64b8654402b3710275011a41e"
+            }
+          ],
+          "archive_bytes": 118398721,
+          "runtime_kind": "native",
+          "updater": true,
+          "capture_capability": {
+            "capability_version": "apple_input_node_output_route_v1",
+            "export_contract": "apple_processed_mono16k_v1",
+            "progress_contract": "audio_queue_fence_v1"
+          }
         }
       ],
       "updater_public_key": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDdERkFCNDE4OTY5RjUzOTYKUldTV1U1K1dHTFQ2Zlh3bStBV0hkZ2FUYkpzd0hNQ1hoU0crTk1Wb1RKdjVUVzRscHkrQ051TlQK"
